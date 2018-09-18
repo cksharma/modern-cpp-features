@@ -34,6 +34,7 @@ C++11 includes the following new language features:
 C++11 includes the following new library features:
 - [std::move](#stdmove)
 - [std::forward](#stdforward)
+- [std::thread](#stdthread)
 - [std::to_string](#stdto_string)
 - [type traits](#type-traits)
 - [smart pointers](#smart-pointers)
@@ -177,7 +178,7 @@ auto f3 = [x] () mutable { x = 2; }; // OK: the lambda can perform any operation
 ```
 
 ### decltype
-`decltype` is an operator which returns the _declared type_ of an expression passed to it. Examples of `decltype`:
+`decltype` is an operator which returns the _declared type_ of an expression passed to it. cv-qualifiers and references are maintained if they are part of the expression. Examples of `decltype`:
 ```c++
 int a = 1; // `a` is declared as type `int`
 decltype(a) b = a; // `decltype(a)` is `int`
@@ -195,6 +196,8 @@ auto add(X x, Y y) -> decltype(x + y) {
 }
 add(1, 2.0); // `decltype(x + y)` => `decltype(3.0)` => `double`
 ```
+
+See also: `decltype(auto)` (C++14).
 
 ### Template aliases
 Semantically similar to using a `typedef` however, template aliases with `using` are easier to read and are compatible with templates.
@@ -556,7 +559,7 @@ Transferring `std::unique_ptr`s:
 ```c++
 std::unique_ptr<int> p1{ new int };
 std::unique_ptr<int> p2 = p1; // error -- cannot copy unique pointers
-std::unique_ptr<int> p3 = std::move(p1); // move `p1` into `p2`
+std::unique_ptr<int> p3 = std::move(p1); // move `p1` into `p3`
                                          // now unsafe to dereference object held by `p1`
 ```
 
@@ -594,6 +597,21 @@ wrapper(a); // copied
 wrapper(std::move(a)); // moved
 ```
 
+### std::thread
+The `std::thread` library provides a standard way to control threads, such as spawning and killing them. In the example below, multiple threads are spawned to do different calculations and then the program waits for all of them to finish.
+
+```c++
+void foo(bool clause) { /* do something... */ }
+
+std::vector<std::thread> threadsVector;
+threadsVector.emplace_back([]() {
+    // Lambda function that will be invoked    
+});
+threadsVector.emplace_back(foo, true);  // thread will run foo(true)
+for (auto& thread : threadsVector)
+    thread.join(); // Wait for threads to finish
+```
+
 ### std::to_string
 Converts a numeric argument to a `std::string`.
 ```c++
@@ -604,9 +622,9 @@ std::to_string(123); // == "123"
 ### Type traits
 Type traits defines a compile-time template-based interface to query or modify the properties of types.
 ```c++
-static_assert(std::is_integral<int>::value == 1);
-static_assert(std::is_same<int, int>::value == 1);
-static_assert(std::is_same<std::conditional<true, int, double>::type, int>::value == 1);
+static_assert(std::is_integral<int>::value);
+static_assert(std::is_same<int, int>::value);
+static_assert(std::is_same<std::conditional<true, int, double>::type, int>::value);
 ```
 
 ### Smart pointers
@@ -652,10 +670,10 @@ baz(p1);
 ### std::chrono
 The chrono library contains a set of utility functions and types that deal with _durations_, _clocks_, and _time points_. One use case of this library is benchmarking code:
 ```c++
-std::chrono::time_point<std::chrono::system_clock> start, end;
-start = std::chrono::system_clock::now();
+std::chrono::time_point<std::chrono::steady_clock> start, end;
+start = std::chrono::steady_clock::now();
 // Some computations...
-end = std::chrono::system_clock::now();
+end = std::chrono::steady_clock::now();
 
 std::chrono::duration<double> elapsed_seconds = end-start;
 
@@ -665,7 +683,7 @@ elapsed_seconds.count(); // t number of seconds, represented as a `double`
 ### Tuples
 Tuples are a fixed-size collection of heterogeneous values. Access the elements of a `std::tuple` by unpacking using [`std::tie`](#stdtie), or using `std::get`.
 ```c++
-// `playerProfile` has type `std::tuple<int, std::string, std::string>`.
+// `playerProfile` has type `std::tuple<int, const char*, const char*>`.
 auto playerProfile = std::make_tuple(51, "Frans Nielsen", "NYI");
 std::get<0>(playerProfile); // 51
 std::get<1>(playerProfile); // "Frans Nielsen"
@@ -717,6 +735,8 @@ See the section on [smart pointers](#smart-pointers) for more information on `st
 
 ### Memory model
 C++11 introduces a memory model for C++, which means library support for threading and atomic operations. Some of these operations include (but aren't limited to) atomic loads/stores, compare-and-swap, atomic flags, promises, futures, locks, and condition variables.
+
+See the sections on: [std::thread](#stdthread)
 
 ## Acknowledgements
 * [cppreference](http://en.cppreference.com/w/cpp) - especially useful for finding examples and documentation of new library features.

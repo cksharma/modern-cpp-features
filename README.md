@@ -27,7 +27,10 @@ C++17 includes the following new library features:
 - [std::string_view](#stdstring_view)
 - [std::invoke](#stdinvoke)
 - [std::apply](#stdapply)
+- [std::filesystem](#stdfilesystem)
+- [std::byte](#stdbyte)
 - [splicing for maps and sets](#splicing-for-maps-and-sets)
+- [parallel algorithms](#parallel-algorithms)
 
 C++14 includes the following new language features:
 - [binary literals](#binary-literals)
@@ -74,6 +77,7 @@ C++11 includes the following new language features:
 C++11 includes the following new library features:
 - [std::move](#stdmove)
 - [std::forward](#stdforward)
+- [std::thread](#stdthread)
 - [std::to_string](#stdto_string)
 - [type traits](#type-traits)
 - [smart pointers](#smart-pointers)
@@ -343,7 +347,7 @@ std::string_view cppstr{ "foo" };
 std::wstring_view wcstr_v{ L"baz" };
 // Character arrays.
 char array[3] = {'b', 'a', 'r'};
-std::string_view array_v(array, sizeof array);
+std::string_view array_v(array, std::size(array));
 ```
 ```c++
 std::string str{ "   trim me" };
@@ -383,6 +387,33 @@ auto add = [] (int x, int y) {
 std::apply(add, std::make_tuple( 1, 2 )); // == 3
 ```
 
+### std::filesystem
+The new `std::filesystem` library provides a standard way to manipulate files, directories, and paths in a filesystem.
+
+Here, a big file is copied to a temporary path if there is available space:
+```c++
+const auto bigFilePath {"bigFileToCopy"};
+if (std::filesystem::exists(bigFilePath)) {   
+  const auto bigFileSize {std::filesystem::file_size(bigFilePath)};
+  std::filesystem::path tmpPath {"/tmp"};
+  if (std::filesystem::space(tmpPath).available > bigFileSize) {
+    std::filesystem::create_directory(tmpPath.append("example"));
+    std::filesystem::copy_file(bigFilePath, tmpPath.append("newFile"));
+  }
+}
+```
+
+### std::byte
+The new `std::byte` type provides a standard way of representing data as a byte. Benefits of using `std::byte` over `char` or `unsigned char` is that it is not a character type, and is also not an arithmetic type; while the only operator overloads available are bitwise operations.
+```c++
+std::byte a {0};
+std::byte b {0xFF};
+int i = std::to_integer<int>(b); // 0xFF
+std::byte c = a & b;
+int j = std::to_integer<int>(c); // 0
+```
+Note that `std::byte` is simply an enum, and braced initialization of enums become possible thanks to [direct-list-initialization of enums](#direct-list-initialization-of-enums).
+
 ### Splicing for maps and sets
 Moving nodes and merging containers without the overhead of expensive copies, moves, or heap allocations/deallocations.
 
@@ -421,6 +452,17 @@ auto e = m.extract(2);
 e.key() = 4;
 m.insert(std::move(e));
 // m == { { 1, "one" }, { 3, "three" }, { 4, "two" } }
+```
+
+### Parallel algorithms
+Many of the STL algorithms, such as the `copy`, `find` and `sort` methods, started to support the *parallel execution policies*: `seq`, `par` and `par_unseq` which translate to "sequentially", "parallel" and "parallel unsequenced".
+
+```c++
+std::vector<int> longVector;
+// Find element using parallel execution policy
+auto result1 = std::find(std::execution::par, std::begin(longVector), std::end(longVector), 2);
+// Sort elements using sequential execution policy
+auto result2 = std::sort(std::execution::seq, std::begin(longVector), std::end(longVector));
 ```
 
 ## C++14 Language Features
@@ -495,7 +537,7 @@ int& z = g(y); // reference to `y`
 ```
 
 ### decltype(auto)
-The `decltype(auto)` type-specifier also deduces a type like `auto` does. However, it deduces return types while keeping their references or "const-ness", while `auto` will not.
+The `decltype(auto)` type-specifier also deduces a type like `auto` does. However, it deduces return types while keeping their references and cv-qualifiers, while `auto` will not.
 ```c++
 const int x = 0;
 auto x1 = x; // int
@@ -526,6 +568,8 @@ static_assert(std::is_same<const int&, decltype(f(x))>::value == 0);
 static_assert(std::is_same<int, decltype(f(x))>::value == 1);
 static_assert(std::is_same<const int&, decltype(g(x))>::value == 1);
 ```
+
+See also: [`decltype`](#decltype).
 
 ### Relaxing constraints on constexpr functions
 In C++11, `constexpr` function bodies could only contain a very limited set of syntaxes, including (but not limited to): `typedef`s, `using`s, and a single `return` statement. In C++14, the set of allowable syntaxes expands greatly to include the most common syntax such as `if` statements, multiple `return`s, loops, etc.
@@ -726,7 +770,7 @@ auto f3 = [x] () mutable { x = 2; }; // OK: the lambda can perform any operation
 ```
 
 ### decltype
-`decltype` is an operator which returns the _declared type_ of an expression passed to it. Examples of `decltype`:
+`decltype` is an operator which returns the _declared type_ of an expression passed to it. cv-qualifiers and references are maintained if they are part of the expression. Examples of `decltype`:
 ```c++
 int a = 1; // `a` is declared as type `int`
 decltype(a) b = a; // `decltype(a)` is `int`
@@ -744,6 +788,8 @@ auto add(X x, Y y) -> decltype(x + y) {
 }
 add(1, 2.0); // `decltype(x + y)` => `decltype(3.0)` => `double`
 ```
+
+See also: [`decltype(auto)`](#decltypeauto).
 
 ### Template aliases
 Semantically similar to using a `typedef` however, template aliases with `using` are easier to read and are compatible with templates.
@@ -1105,7 +1151,7 @@ Transferring `std::unique_ptr`s:
 ```c++
 std::unique_ptr<int> p1{ new int };
 std::unique_ptr<int> p2 = p1; // error -- cannot copy unique pointers
-std::unique_ptr<int> p3 = std::move(p1); // move `p1` into `p2`
+std::unique_ptr<int> p3 = std::move(p1); // move `p1` into `p3`
                                          // now unsafe to dereference object held by `p1`
 ```
 
@@ -1143,6 +1189,21 @@ wrapper(a); // copied
 wrapper(std::move(a)); // moved
 ```
 
+### std::thread
+The `std::thread` library provides a standard way to control threads, such as spawning and killing them. In the example below, multiple threads are spawned to do different calculations and then the program waits for all of them to finish.
+
+```c++
+void foo(bool clause) { /* do something... */ }
+
+std::vector<std::thread> threadsVector;
+threadsVector.emplace_back([]() {
+    // Lambda function that will be invoked    
+});
+threadsVector.emplace_back(foo, true);  // thread will run foo(true)
+for (auto& thread : threadsVector)
+    thread.join(); // Wait for threads to finish
+```
+
 ### std::to_string
 Converts a numeric argument to a `std::string`.
 ```c++
@@ -1153,9 +1214,9 @@ std::to_string(123); // == "123"
 ### Type traits
 Type traits defines a compile-time template-based interface to query or modify the properties of types.
 ```c++
-static_assert(std::is_integral<int>::value == 1);
-static_assert(std::is_same<int, int>::value == 1);
-static_assert(std::is_same<std::conditional<true, int, double>::type, int>::value == 1);
+static_assert(std::is_integral<int>::value);
+static_assert(std::is_same<int, int>::value);
+static_assert(std::is_same<std::conditional<true, int, double>::type, int>::value);
 ```
 
 ### Smart pointers
@@ -1201,10 +1262,10 @@ baz(p1);
 ### std::chrono
 The chrono library contains a set of utility functions and types that deal with _durations_, _clocks_, and _time points_. One use case of this library is benchmarking code:
 ```c++
-std::chrono::time_point<std::chrono::system_clock> start, end;
-start = std::chrono::system_clock::now();
+std::chrono::time_point<std::chrono::steady_clock> start, end;
+start = std::chrono::steady_clock::now();
 // Some computations...
-end = std::chrono::system_clock::now();
+end = std::chrono::steady_clock::now();
 
 std::chrono::duration<double> elapsed_seconds = end-start;
 
@@ -1214,7 +1275,7 @@ elapsed_seconds.count(); // t number of seconds, represented as a `double`
 ### Tuples
 Tuples are a fixed-size collection of heterogeneous values. Access the elements of a `std::tuple` by unpacking using [`std::tie`](#stdtie), or using `std::get`.
 ```c++
-// `playerProfile` has type `std::tuple<int, std::string, std::string>`.
+// `playerProfile` has type `std::tuple<int, const char*, const char*>`.
 auto playerProfile = std::make_tuple(51, "Frans Nielsen", "NYI");
 std::get<0>(playerProfile); // 51
 std::get<1>(playerProfile); // "Frans Nielsen"
@@ -1266,6 +1327,8 @@ See the section on [smart pointers](#smart-pointers) for more information on `st
 
 ### Memory model
 C++11 introduces a memory model for C++, which means library support for threading and atomic operations. Some of these operations include (but aren't limited to) atomic loads/stores, compare-and-swap, atomic flags, promises, futures, locks, and condition variables.
+
+See the sections on: [std::thread](#stdthread)
 
 ## Acknowledgements
 * [cppreference](http://en.cppreference.com/w/cpp) - especially useful for finding examples and documentation of new library features.
